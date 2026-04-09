@@ -33,9 +33,12 @@ log('🚀 server.js loaded');
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// CORS Configuration - Allow only Netlify frontend
+// CORS Configuration - Allow Netlify frontend + Railway backend + localhost
 const allowedOrigins = [
-    'https://faithoverfearrw.netlify.app'
+    'https://faithoverfearrw.netlify.app',
+    'https://fof-backend-production.up.railway.app',
+    'http://localhost:3000',
+    'http://localhost:5173'
 ].filter(Boolean);
 
 app.use(cors({
