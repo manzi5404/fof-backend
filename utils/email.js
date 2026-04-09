@@ -78,7 +78,7 @@ async function notifyNewDrop(userEmails, dropDetails) {
                             <!-- CTA Button -->
                             <tr>
                                 <td align="center" style="padding: 0 40px 40px;">
-                                    <a href="https://tinyurl.com/faithoverfearrw/shop" style="display: inline-block; background: #fff; color: #000; text-decoration: none; padding: 18px 48px; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 2px; border-radius: 6px; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(255,255,255,0.1);">Shop the Drop Now</a>
+                                    <a href="https://faithoverfearrw.netlify.app/shop" style="display: inline-block; background: #fff; color: #000; text-decoration: none; padding: 18px 48px; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 2px; border-radius: 6px; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(255,255,255,0.1);">Shop the Drop Now</a>
                                 </td>
                             </tr>
                             
