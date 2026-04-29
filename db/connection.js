@@ -2,7 +2,8 @@
 const mysql = require('mysql2/promise');
 
 // ==============================
-// Database Configuration with Fallbacks
+// Database Configuration
+// PRIORITY: MYSQL* (Railway/Render default) || DB_* (manual override)
 // ==============================
 const dbConfig = {
   host: process.env.MYSQLHOST || process.env.DB_HOST,
@@ -13,49 +14,66 @@ const dbConfig = {
 };
 
 // ==============================
+// Validation: Check required config
+// ==============================
+const requiredKeys = ['host', 'user', 'password', 'database'];
+const missing = requiredKeys.filter(key => !dbConfig[key]);
+
+if (missing.length > 0) {
+  console.error('❌ Missing database configuration:', missing.join(', '));
+  console.error('   Required: MYSQLHOST/MYSQLUSER/MYSQLPASSWORD/MYSQLDATABASE (or DB_* equivalents)');
+}
+
+// ==============================
 // Environment Variable Logging
 // ==============================
-console.log('💡 Checking DB Configuration:');
+console.log('💡 Database Configuration:');
 console.table({
-  host: dbConfig.host,
-  user: dbConfig.user,
-  database: dbConfig.database,
-  port: dbConfig.port,
+  host: dbConfig.host || '(not set)',
+  user: dbConfig.user || '(not set)',
+  database: dbConfig.database || '(not set)',
+  port: dbConfig.port || '(not set)',
   passwordSet: !!dbConfig.password,
+  source: process.env.MYSQLHOST || process.env.MYSQLUSER ? 'MYSQL* (provider default)' : 'DB_* (manual)'
 });
 
 // ==============================
-// Create MySQL Pool
+// Create MySQL Connection Pool
 // ==============================
 let pool;
 
 try {
-  pool = mysql.createPool(dbConfig);
-  console.log('✅ MySQL pool created successfully');
+  pool = mysql.createPool({
+    ...dbConfig,
+    waitForConnections: true,
+    connectionLimit: 10,
+    queueLimit: 0
+  });
+  console.log('✅ MySQL connection pool created');
 } catch (err) {
   console.error('❌ Failed to create MySQL pool:', err.message);
 }
 
 // ==============================
-// Function to Verify Connection
+// Verify Connection (non-blocking)
 // ==============================
 async function initializeDatabase() {
   if (!pool) {
-    console.error('❌ Pool not initialized. Check DB configuration.');
+    console.error('❌ Cannot verify connection: pool not initialized');
     return;
   }
 
   try {
     const connection = await pool.getConnection();
-    console.log('🚀 Database connection verified');
+    console.log('✅ Database connection verified');
     connection.release();
   } catch (err) {
     console.error('❌ Database connection failed:', err.message);
-    // App continues; don't crash
+    console.error('   Check: host, port, user, password, database, network access');
   }
 }
 
 // ==============================
-// Export Pool & Initialize Function
+// Export
 // ==============================
 module.exports = { pool, initializeDatabase };
