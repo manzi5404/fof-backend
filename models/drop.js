@@ -2,39 +2,49 @@ const { pool } = require('../db/connection');
 const productService = require('./product');
 
 async function addDrop(drop) {
-  const { title, description, image_url, release_date, status, type, collection_id } = drop;
-  const [result] = await pool.query(
-    `INSERT INTO drops (title, description, image_url, release_date, status, type, collection_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  const {
+    title,
+    description,
+    image_url,
+    release_date,
+    status,
+    type
+  } = drop;
+
+  const result = await pool.query(
+    `INSERT INTO drops
+      (title, description, image_url, release_date, status, type)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     RETURNING id`,
     [
       title,
       description || null,
       image_url || null,
       release_date || null,
       status || 'upcoming',
-      type || 'new-drop',
-      collection_id || null
+      type || 'new-drop'
     ]
   );
-  return result.insertId;
+  return result.rows[0].id;
 }
 
 async function getDrops(statusFilter = null, includeProducts = false) {
-  let sql = 'SELECT * FROM drops';
-  let params = [];
-  
+  let sql = 'SELECT id, title, description, image_url, release_date, status, type, created_at, updated_at FROM drops';
+  const params = [];
+
   if (statusFilter && statusFilter !== 'all') {
     if (statusFilter === 'active' || statusFilter === 'true') {
-      sql += ' WHERE status = "live" OR status = "reservation"';
+      sql += " WHERE status = 'live'";
     } else {
-      sql += ' WHERE status = ?';
+      sql += ' WHERE status = $1';
       params.push(statusFilter);
     }
   }
-  
+
   sql += ' ORDER BY created_at DESC';
-  
-  const [rows] = await pool.query(sql, params);
+
+  const result = await pool.query(sql, params);
+  let rows = result.rows;
 
   if (includeProducts && rows.length > 0) {
     const productsByDrop = await Promise.all(rows.map(row => productService.getProductsByDropId(row.id)));
@@ -46,15 +56,33 @@ async function getDrops(statusFilter = null, includeProducts = false) {
   return rows;
 }
 
+async function getDropById(id) {
+  const result = await pool.query(
+    'SELECT id, title, description, image_url, release_date, status, type, created_at, updated_at FROM drops WHERE id = $1',
+    [id]
+  );
+  return result.rows[0] || null;
+}
+
 async function editDrop(id, drop) {
-  const fields = ['title', 'description', 'image_url', 'release_date', 'status', 'type', 'collection_id'];
+  const allowedFields = [
+    'title',
+    'description',
+    'image_url',
+    'release_date',
+    'status',
+    'type'
+  ];
+
   const updates = [];
   const params = [];
+  let paramIndex = 1;
 
-  fields.forEach((field) => {
+  allowedFields.forEach((field) => {
     if (drop[field] !== undefined) {
-      updates.push(`${field} = ?`);
+      updates.push(`${field} = $${paramIndex}`);
       params.push(drop[field]);
+      paramIndex++;
     }
   });
 
@@ -63,16 +91,16 @@ async function editDrop(id, drop) {
   }
 
   params.push(id);
-  const [rows] = await pool.query(
-    `UPDATE drops SET ${updates.join(', ')} WHERE id = ?`,
+  const result = await pool.query(
+    `UPDATE drops SET ${updates.join(', ')} WHERE id = $${paramIndex}`,
     params
   );
-  return rows.affectedRows > 0;
+  return result.rowCount > 0;
 }
 
 async function deleteDrop(id) {
-  const [rows] = await pool.query('DELETE FROM drops WHERE id = ?', [id]);
-  return rows.affectedRows > 0;
+  const result = await pool.query('DELETE FROM drops WHERE id = $1', [id]);
+  return result.rowCount > 0;
 }
 
 module.exports = { addDrop, getDrops, editDrop, deleteDrop };

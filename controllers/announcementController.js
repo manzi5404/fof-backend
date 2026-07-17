@@ -1,6 +1,18 @@
 const announcementModel = require('../models/announcement');
 const appEmitter = require('../utils/events');
 
+const ALLOWED_ANNOUNCEMENT_FIELDS = ['title', 'message', 'image_url', 'button_text', 'is_enabled', 'status'];
+
+function sanitizeAnnouncementInput(body) {
+    const data = {};
+    ALLOWED_ANNOUNCEMENT_FIELDS.forEach((field) => {
+        if (body[field] !== undefined) {
+            data[field] = body[field];
+        }
+    });
+    return data;
+}
+
 async function getLatestAnnouncement(req, res) {
     try {
         const announcement = await announcementModel.getLatestAnnouncement();
@@ -13,9 +25,12 @@ async function getLatestAnnouncement(req, res) {
 
 async function updateAnnouncement(req, res) {
     try {
-        const announcement = await announcementModel.updateAnnouncement(req.body);
+        const data = sanitizeAnnouncementInput(req.body);
+        if (!data.title) {
+            return res.status(400).json({ success: false, message: 'title is required' });
+        }
+        const announcement = await announcementModel.updateAnnouncement(data);
         
-        // Broadcast update via SSE
         appEmitter.emit('announcement_update', announcement);
         
         res.json({ success: true, message: 'Announcement updated successfully', announcement });

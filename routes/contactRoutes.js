@@ -9,10 +9,7 @@ const {
 } = require('../controllers/contactController');
 
 // Public route for submitting contact form
-router.post('/', (req, res, next) => {
-    console.log('Incoming Message:', req.body);
-    next();
-}, submitContactForm);
+router.post('/', submitContactForm);
 
 // Admin routes
 router.get('/', verifyAdmin, getMessages);

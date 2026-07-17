@@ -6,10 +6,10 @@ async function createOrder(orderData) {
         customer_email, phone_number, items, total_price
     } = orderData;
 
-    const connection = await pool.getConnection();
+    const client = await pool.connect();
 
     try {
-        await connection.beginTransaction();
+        await client.query('BEGIN');
 
         const orderItems = Array.isArray(items) ? items : [];
         const itemCount = orderItems.length;
@@ -26,12 +26,13 @@ async function createOrder(orderData) {
         const orderTotalPrice = Number(total_price);
 
         const orderProductId = singleItem ? singleItem.product_id : null;
-        const [orderResult] = await connection.query(
+        const orderResult = await client.query(
             `INSERT INTO orders (
                 user_id, product_id, drop_id, product_name, size, color,
                 quantity, quality_level_id, price_at_purchase, total_price,
                 status, payment_method, customer_name, customer_email, phone_number
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)`,
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending', $11, $12, $13, $14)
+            RETURNING id`,
             [
                 user_id || null,
                 orderProductId,
@@ -50,14 +51,14 @@ async function createOrder(orderData) {
             ]
         );
 
-        const orderId = orderResult.insertId;
+        const orderId = orderResult.rows[0].id;
 
         for (const item of orderItems) {
-            await connection.query(
+            await client.query(
                 `INSERT INTO order_items (
                     order_id, product_id, product_name, size, color,
                     quantity, quality_level_id, price_at_purchase, total_price
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
                 [
                     orderId,
                     item.product_id,
@@ -72,26 +73,26 @@ async function createOrder(orderData) {
             );
         }
 
-        await connection.commit();
+        await client.query('COMMIT');
         return orderId;
     } catch (error) {
-        await connection.rollback();
+        await client.query('ROLLBACK');
         throw error;
     } finally {
-        connection.release();
+        client.release();
     }
 }
 
 async function getOrderById(id) {
-    const [rows] = await pool.query(
+    const result = await pool.query(
         `SELECT o.*, p.name as product_name_from_products, p.image_urls as product_image_urls
          FROM orders o
          LEFT JOIN products p ON o.product_id = p.id
-         WHERE o.id = ?`,
+         WHERE o.id = $1`,
         [id]
     );
-    if (rows.length === 0) return null;
-    const row = rows[0];
+    if (result.rows.length === 0) return null;
+    const row = result.rows[0];
     if (!row.product_name && row.product_name_from_products) {
         row.product_name = row.product_name_from_products;
     }
@@ -99,15 +100,15 @@ async function getOrderById(id) {
 }
 
 async function getOrdersByUser(userId) {
-    const [rows] = await pool.query(
+    const result = await pool.query(
         `SELECT o.*, p.name as product_name_from_products, p.image_urls as product_image_urls
          FROM orders o
          LEFT JOIN products p ON o.product_id = p.id
-         WHERE o.user_id = ?
+         WHERE o.user_id = $1
          ORDER BY o.created_at DESC`,
         [userId]
     );
-    return rows.map(row => {
+    return result.rows.map(row => {
         if (!row.product_name && row.product_name_from_products) {
             row.product_name = row.product_name_from_products;
         }
@@ -130,22 +131,27 @@ async function getAllOrders(filters = {}) {
     
     const whereClauses = [];
     const params = [];
+    let paramIndex = 1;
 
     if (status && status !== 'all') {
-        whereClauses.push('o.status = ?');
+        whereClauses.push(`o.status = $${paramIndex}`);
         params.push(status);
+        paramIndex++;
     }
     if (productId && productId !== 'all') {
-        whereClauses.push('o.product_id = ?');
+        whereClauses.push(`o.product_id = $${paramIndex}`);
         params.push(productId);
+        paramIndex++;
     }
     if (startDate) {
-        whereClauses.push('o.created_at >= ?');
-        params.push(`${startDate} 00:00:00`);
+        whereClauses.push(`o.created_at >= $${paramIndex}`);
+        params.push(`${startDate}T00:00:00`);
+        paramIndex++;
     }
     if (endDate) {
-        whereClauses.push('o.created_at <= ?');
-        params.push(`${endDate} 23:59:59`);
+        whereClauses.push(`o.created_at <= $${paramIndex}`);
+        params.push(`${endDate}T23:59:59`);
+        paramIndex++;
     }
 
     if (whereClauses.length > 0) {
@@ -154,8 +160,8 @@ async function getAllOrders(filters = {}) {
 
     query += ` ORDER BY o.created_at DESC`;
 
-    const [rows] = await pool.query(query, params);
-    return rows.map(row => {
+    const result = await pool.query(query, params);
+    return result.rows.map(row => {
         if (!row.product_name && row.product_name_from_products) {
             row.product_name = row.product_name_from_products;
         }
@@ -164,11 +170,11 @@ async function getAllOrders(filters = {}) {
 }
 
 async function updateOrderStatus(orderId, newStatus) {
-    const [result] = await pool.query(
-        'UPDATE orders SET status = ? WHERE id = ?',
+    const result = await pool.query(
+        'UPDATE orders SET status = $1 WHERE id = $2',
         [newStatus, orderId]
     );
-    return result.affectedRows > 0;
+    return result.rowCount > 0;
 }
 
 module.exports = {

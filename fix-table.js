@@ -7,12 +7,12 @@ async function fix() {
         console.log('Creating table...');
         await pool.query(`
             CREATE TABLE announcements (
-                id INT AUTO_INCREMENT PRIMARY KEY,
+                id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 title VARCHAR(255) NOT NULL,
                 message TEXT NOT NULL,
                 is_enabled BOOLEAN DEFAULT TRUE,
-                version INT NOT NULL DEFAULT 1,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                version INTEGER NOT NULL DEFAULT 1,
+                updated_at TIMESTAMPTZ DEFAULT NOW()
             )
         `);
         console.log('Done.');

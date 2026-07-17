@@ -5,14 +5,18 @@ const jwt = require('jsonwebtoken');
  * Simply ensures the user is logged in with a valid token.
  */
 const protect = (req, res, next) => {
-    const token = req.cookies.auth_token;
+    const cookieToken = req.cookies.auth_token;
+    const headerToken = req.headers.authorization?.startsWith('Bearer ')
+        ? req.headers.authorization.slice(7)
+        : null;
+    const token = cookieToken || headerToken;
 
     if (!token) {
         return res.status(401).json({ success: false, message: 'You must be logged in to access this resource' });
     }
 
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fof_secret');
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
         req.user = decoded;
         next();
     } catch (error) {
@@ -40,7 +44,7 @@ const verifyAdmin = (req, res, next) => {
     }
 
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fof_secret');
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
         // Exact list of admin emails
         const adminEmails = [

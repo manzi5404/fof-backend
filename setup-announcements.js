@@ -4,24 +4,23 @@ async function setup() {
     try {
         console.log('Starting DB setup for Backend Bridge...');
 
-        // Drop and recreate to ensure schema consistency
         await pool.query('DROP TABLE IF EXISTS announcements');
 
         await pool.query(`
             CREATE TABLE announcements (
-                id INT AUTO_INCREMENT PRIMARY KEY,
+                id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 title VARCHAR(255) NOT NULL,
                 message TEXT NOT NULL,
                 is_enabled BOOLEAN DEFAULT TRUE,
-                version INT NOT NULL DEFAULT 1,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                version INTEGER NOT NULL DEFAULT 1,
+                updated_at TIMESTAMPTZ DEFAULT NOW()
             )
         `);
         console.log('✅ Table "announcements" created with new schema (is_enabled, version INT).');
 
         await pool.query(`
             INSERT INTO announcements (id, title, message, is_enabled, version)
-            VALUES (1, ?, ?, ?, ?)
+            VALUES (1, $1, $2, $3, $4)
         `, ['NEW DROP IS HERE', 'Experience the latest "Faith Over Fear" collection. Limited pieces available.', true, 1]);
         console.log('✅ Initial announcement seeded with version 1.');
 

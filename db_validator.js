@@ -1,14 +1,9 @@
-const mysql = require('mysql2/promise');
+const { Pool } = require('pg');
 require('dotenv').config();
-
-/**
- * DB_TEST_SCRIPT: Faith Over Fear Backend Database Validator
- * This script verifies connection, schema consistency, and CRUD functionality.
- */
 
 const expectedSchema = {
     users: ['id', 'email', 'password_hash', 'name', 'google_id', 'created_at'],
-    drops: ['id', 'title', 'description', 'image_url', 'release_date', 'status', 'collection_id', 'created_at'],
+    drops: ['id', 'title', 'description', 'image_url', 'release_date', 'status', 'created_at'],
     products: ['id', 'drop_id', 'name', 'description', 'price', 'sizes', 'colors', 'image_urls', 'is_active', 'created_at'],
     reservations: ['id', 'user_id', 'full_name', 'email', 'phone', 'product_id', 'size', 'quantity', 'status', 'store_mode'],
     orders: ['id', 'user_id', 'product_id', 'product_name', 'total_price', 'status', 'payment_method'],
@@ -19,7 +14,14 @@ const expectedSchema = {
 async function testDatabase() {
     console.log('🚀 Starting Database Validation Script...\n');
     
-    let connection;
+    const pool = new Pool({
+        host: process.env.PGHOST || process.env.DB_HOST || 'localhost',
+        user: process.env.PGUSER || process.env.DB_USER || 'postgres',
+        password: process.env.PGPASSWORD || process.env.DB_PASSWORD || '',
+        database: process.env.PGDATABASE || process.env.DB_NAME || 'faith_over_fear',
+        port: parseInt(process.env.PGPORT || process.env.DB_PORT || 5432, 10),
+    });
+
     const summary = {
         connection: '❌ Failed',
         schemaMismatches: [],
@@ -28,25 +30,18 @@ async function testDatabase() {
     };
 
     try {
-        // 1. Connect using environment variables
-        connection = await mysql.createConnection({
-            host: process.env.MYSQLHOST || process.env.DB_HOST || 'localhost',
-            user: process.env.MYSQLUSER || process.env.DB_USER || 'root',
-            password: process.env.MYSQLPASSWORD || process.env.DB_PASSWORD || '',
-            database: process.env.MYSQLDATABASE || process.env.DB_NAME || 'faith_over_fear',
-            port: process.env.MYSQLPORT || process.env.DB_PORT || 3306
-        });
-
+        await pool.query('SELECT 1');
         summary.connection = '✅ Success';
         console.log('✅ Connection established successfully.\n');
 
-        // 2. Validate Schema and Fetch Data
         console.log('🔍 Checking tables and columns...');
         for (const [tableName, expectedCols] of Object.entries(expectedSchema)) {
             try {
-                // Check if table exists and get columns
-                const [cols] = await connection.query(`SHOW COLUMNS FROM ${tableName}`);
-                const actualCols = cols.map(c => c.Field);
+                const result = await pool.query(
+                    `SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1`,
+                    [tableName]
+                );
+                const actualCols = result.rows.map(c => c.column_name);
                 
                 const missing = expectedCols.filter(x => !actualCols.includes(x));
                 const extra = actualCols.filter(x => !expectedCols.includes(x));
@@ -55,12 +50,11 @@ async function testDatabase() {
                     summary.schemaMismatches.push(`${tableName}: Missing [${missing.join(', ')}]`);
                 }
 
-                // Fetch a sample row
-                const [rows] = await connection.query(`SELECT * FROM ${tableName} LIMIT 2`);
-                summary.tableFetches[tableName] = `✅ Fetched ${rows.length} rows`;
+                const fetchResult = await pool.query(`SELECT * FROM ${tableName} LIMIT 2`);
+                summary.tableFetches[tableName] = `✅ Fetched ${fetchResult.rows.length} rows`;
                 console.log(`   - ${tableName}: ${summary.tableFetches[tableName]}`);
-                if (rows.length > 0) {
-                    console.dir(rows[0]); // Print first row sample
+                if (fetchResult.rows.length > 0) {
+                    console.dir(fetchResult.rows[0]);
                 }
             } catch (err) {
                 summary.tableFetches[tableName] = `❌ Error: ${err.message}`;
@@ -69,27 +63,23 @@ async function testDatabase() {
         }
         console.log('');
 
-        // 3. CRUD Test (using 'drops' table)
         console.log('🧪 Running CRUD Test on "drops" table...');
         try {
-            // INSERT
-            const [insertResult] = await connection.query(
-                'INSERT INTO drops (title, description, status) VALUES (?, ?, ?)',
+            const insertResult = await pool.query(
+                'INSERT INTO drops (title, description, status) VALUES ($1, $2, $3) RETURNING id',
                 ['TEST DROP', 'Temporary test content', 'upcoming']
             );
-            const dropId = insertResult.insertId;
+            const dropId = insertResult.rows[0].id;
             console.log(`   - INSERT: Success (ID: ${dropId})`);
 
-            // UPDATE
-            await connection.query(
-                'UPDATE drops SET title = ? WHERE id = ?',
+            await pool.query(
+                'UPDATE drops SET title = $1 WHERE id = $2',
                 ['UPDATED TEST DROP', dropId]
             );
             console.log('   - UPDATE: Success');
 
-            // DELETE
-            const [deleteResult] = await connection.query('DELETE FROM drops WHERE id = ?', [dropId]);
-            console.log(`   - DELETE: Success (${deleteResult.affectedRows} row removed)`);
+            const deleteResult = await pool.query('DELETE FROM drops WHERE id = $1', [dropId]);
+            console.log(`   - DELETE: Success (${deleteResult.rowCount} row removed)`);
 
             summary.crudTest = '✅ Success';
         } catch (crudErr) {
@@ -97,7 +87,6 @@ async function testDatabase() {
             console.error(summary.crudTest);
         }
 
-        // 4. Final Summary
         console.log('\n=========================================');
         console.log('📊 FINAL VALIDATION SUMMARY');
         console.log('=========================================');
@@ -120,7 +109,7 @@ async function testDatabase() {
     } catch (error) {
         console.error('❌ CRITICAL SCRIPT ERROR:', error.message);
     } finally {
-        if (connection) await connection.end();
+        await pool.end();
     }
 }
 

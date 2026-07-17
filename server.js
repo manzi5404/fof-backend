@@ -8,7 +8,7 @@ const { protect } = require('./middleware/authMiddleware');
 const checkStoreMode = require('./middleware/storeModeMiddleware');
 const errorHandler = require('./middleware/errorHandler');
 
-const {pool} = require('./db/connection');
+const { pool } = require('./db/connection');
 const { initializeDatabase } = require('./db/init');
 
 const authRoutes = require('./routes/authRoutes');
@@ -73,7 +73,7 @@ app.post('/api/contact', async (req, res) => {
   const { name, email, subject, message } = req.body;
   try {
     await pool.query(
-      'INSERT INTO contact_messages (name, email, subject, message) VALUES (?, ?, ?, ?)',
+      'INSERT INTO contact_messages (name, email, subject, message) VALUES ($1, $2, $3, $4)',
       [name, email, subject, message]
     );
     res.status(200).json({ success: true, message: 'Message received!' });

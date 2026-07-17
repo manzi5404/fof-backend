@@ -16,6 +16,15 @@ const signup = async (req, res) => {
     authLog('⚙️ authController.signup start', { email: req.body.email });
     try {
         const { email, password, name } = req.body;
+
+        if (!email || !password) {
+            return res.status(400).json({ message: 'Email and password are required' });
+        }
+
+        if (password.length < 8) {
+            return res.status(400).json({ message: 'Password must be at least 8 characters' });
+        }
+
         const existingUser = await userModel.getUserByEmail(email);
         if (existingUser) {
             authLog('⚠️ authController.signup user exists', { email });
@@ -27,7 +36,7 @@ const signup = async (req, res) => {
 
         // For signup, we don't necessarily log them in as admin immediately in this flow,
         // but we'll follow the same JWT pattern if we did.
-        const token = jwt.sign({ id: userId, email }, process.env.JWT_SECRET || 'fof_secret', { expiresIn: '2h' });
+        const token = jwt.sign({ id: userId, email }, process.env.JWT_SECRET, { expiresIn: '2h' });
 
         res.cookie('auth_token', token, {
             httpOnly: true,
@@ -47,6 +56,11 @@ const login = async (req, res) => {
     authLog('⚙️ authController.login start', { email: req.body.email });
     try {
         const { email, password } = req.body;
+
+        if (!email || !password) {
+            return res.status(400).json({ message: 'Email and password are required' });
+        }
+
         const user = await userModel.getUserByEmail(email);
         if (!user) {
             authLog('⚠️ authController.login user not found', { email });
@@ -64,7 +78,7 @@ const login = async (req, res) => {
             return res.status(400).json({ message: 'Invalid credentials' });
         }
 
-        const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET || 'fof_secret', { expiresIn: '2h' });
+        const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '2h' });
 
         res.cookie('auth_token', token, {
             httpOnly: true,

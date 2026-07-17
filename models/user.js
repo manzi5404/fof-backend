@@ -2,54 +2,53 @@ const { pool } = require('../db/connection');
 
 async function createUser(user) {
     const { email, password_hash, name, google_id } = user;
-    const [result] = await pool.query(
-        'INSERT INTO users (email, password_hash, name, google_id) VALUES (?, ?, ?, ?)',
+    const result = await pool.query(
+        'INSERT INTO users (email, password_hash, name, google_id) VALUES ($1, $2, $3, $4) RETURNING id',
         [email, password_hash, name, google_id || null]
     );
-    return result.insertId;
+    return result.rows[0].id;
 }
 
 async function getUserByEmail(email) {
-    const [rows] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
-    return rows[0];
+    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    return result.rows[0];
 }
 
 async function getUserById(id) {
-    const [rows] = await pool.query('SELECT * FROM users WHERE id = ?', [id]);
-    return rows[0];
+    const result = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
+    return result.rows[0];
 }
 
 async function getUserByGoogleId(googleId) {
-    const [rows] = await pool.query('SELECT * FROM users WHERE google_id = ?', [googleId]);
-    return rows[0];
+    const result = await pool.query('SELECT * FROM users WHERE google_id = $1', [googleId]);
+    return result.rows[0];
 }
 
 async function updatePassword(userId, newPasswordHash) {
-    const [result] = await pool.query(
-        'UPDATE users SET password_hash = ? WHERE id = ?',
+    const result = await pool.query(
+        'UPDATE users SET password_hash = $1 WHERE id = $2',
         [newPasswordHash, userId]
     );
-    return result.affectedRows > 0;
+    return result.rowCount > 0;
 }
 
 async function getAllUserEmails() {
-    // Quality Control: Ensure no duplicates or empty/null addresses 
-    const [rows] = await pool.query(`
+    const result = await pool.query(`
         SELECT DISTINCT email 
         FROM users 
         WHERE email IS NOT NULL 
           AND email != '' 
           AND email LIKE '%@%'
     `);
-    return rows.map(row => row.email);
+    return result.rows.map(row => row.email);
 }
 
 async function linkGoogleAccount(userId, googleId) {
-    const [result] = await pool.query(
-        'UPDATE users SET google_id = ? WHERE id = ?',
+    const result = await pool.query(
+        'UPDATE users SET google_id = $1 WHERE id = $2',
         [googleId, userId]
     );
-    return result.affectedRows > 0;
+    return result.rowCount > 0;
 }
 
 module.exports = {

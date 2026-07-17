@@ -1,104 +1,68 @@
 const { pool } = require('../db/connection');
 
-/**
- * Get all active quality levels
- * @returns {Promise<Array>} Array of quality levels
- */
 async function getAllQualityLevels() {
-  const [rows] = await pool.query(
-    'SELECT * FROM quality_levels WHERE is_active = 1 ORDER BY sort_order ASC'
+  const result = await pool.query(
+    'SELECT * FROM quality_levels WHERE is_active = true ORDER BY sort_order ASC'
   );
-  return rows;
+  return result.rows;
 }
 
-/**
- * Get all quality levels (including inactive) - for admin
- * @returns {Promise<Array>} Array of all quality levels
- */
 async function getAllQualityLevelsAdmin() {
-  const [rows] = await pool.query(
+  const result = await pool.query(
     'SELECT * FROM quality_levels ORDER BY sort_order ASC'
   );
-  return rows;
+  return result.rows;
 }
 
-/**
- * Get a single quality level by ID
- * @param {number} id - Quality level ID
- * @returns {Promise<Object|null>} Quality level object or null
- */
 async function getQualityLevelById(id) {
-  const [rows] = await pool.query(
-    'SELECT * FROM quality_levels WHERE id = ?',
+  const result = await pool.query(
+    'SELECT * FROM quality_levels WHERE id = $1',
     [id]
   );
-  return rows.length > 0 ? rows[0] : null;
+  return result.rows.length > 0 ? result.rows[0] : null;
 }
 
-/**
- * Create a new quality level
- * @param {Object} data - Quality level data { name, description, sort_order }
- * @returns {Promise<number>} Inserted ID
- */
 async function createQualityLevel(data) {
   const { name, description, sort_order } = data;
-  const [result] = await pool.query(
-    'INSERT INTO quality_levels (name, description, sort_order) VALUES (?, ?, ?)',
+  const result = await pool.query(
+    'INSERT INTO quality_levels (name, description, sort_order) VALUES ($1, $2, $3) RETURNING id',
     [name, description || null, sort_order || 0]
   );
-  return result.insertId;
+  return result.rows[0].id;
 }
 
-/**
- * Update a quality level
- * @param {number} id - Quality level ID
- * @param {Object} data - Updated data
- * @returns {Promise<boolean>} Success status
- */
 async function updateQualityLevel(id, data) {
   const { name, description, sort_order, is_active } = data;
-  const [result] = await pool.query(
-    'UPDATE quality_levels SET name = ?, description = ?, sort_order = ?, is_active = ? WHERE id = ?',
-    [name, description || null, sort_order || 0, is_active ? 1 : 0, id]
+  const result = await pool.query(
+    'UPDATE quality_levels SET name = $1, description = $2, sort_order = $3, is_active = $4 WHERE id = $5',
+    [name, description || null, sort_order || 0, is_active ? true : false, id]
   );
-  return result.affectedRows > 0;
+  return result.rowCount > 0;
 }
 
-/**
- * Delete a quality level (soft delete by setting is_active = 0)
- * @param {number} id - Quality level ID
- * @returns {Promise<boolean>} Success status
- */
 async function deleteQualityLevel(id) {
-  const [result] = await pool.query(
-    'UPDATE quality_levels SET is_active = 0 WHERE id = ?',
+  const result = await pool.query(
+    'UPDATE quality_levels SET is_active = false WHERE id = $1',
     [id]
   );
-  return result.affectedRows > 0;
+  return result.rowCount > 0;
 }
 
-/**
- * Permanently delete a quality level (hard delete)
- * Only possible if no product prices reference this level
- * @param {number} id - Quality level ID
- * @returns {Promise<boolean>} Success status
- */
 async function hardDeleteQualityLevel(id) {
-  // Check if any product prices reference this level
-  const [priceCheck] = await pool.query(
-    'SELECT COUNT(*) as count FROM product_quality_prices WHERE quality_level_id = ?',
+  const priceCheck = await pool.query(
+    'SELECT COUNT(*) as count FROM product_quality_prices WHERE quality_level_id = $1',
     [id]
   );
 
-  if (priceCheck[0].count > 0) {
+  if (parseInt(priceCheck.rows[0].count) > 0) {
     throw new Error('Cannot delete quality level: it is referenced by product prices');
   }
 
-  const [result] = await pool.query(
-    'DELETE FROM quality_levels WHERE id = ?',
+  const result = await pool.query(
+    'DELETE FROM quality_levels WHERE id = $1',
     [id]
   );
-  return result.affectedRows > 0;
+  return result.rowCount > 0;
 }
 
 module.exports = {

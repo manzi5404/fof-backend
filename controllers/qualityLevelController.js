@@ -33,7 +33,7 @@ async function createQualityLevel(req, res) {
             name,
             description,
             sort_order: Number(sort_order) || 0,
-            is_active: is_active ? 1 : 0
+            is_active: Boolean(is_active)
         });
         res.status(201).json({ success: true, qualityLevelId });
     } catch (err) {
@@ -50,7 +50,7 @@ async function updateQualityLevel(req, res) {
             name,
             description,
             sort_order: Number(sort_order) || 0,
-            is_active: is_active ? 1 : 0
+            is_active: Boolean(is_active)
         });
         if (!updated) {
             return res.status(404).json({ success: false, message: 'Quality level not found or not updated' });

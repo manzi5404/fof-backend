@@ -2,7 +2,10 @@ const contactMessage = require('../models/contactMessage');
 const notification = require('../models/notification');
 
 const submitContactForm = async (req, res) => {
-    const { name, email, subject, message } = req.body;
+    const name = (req.body.name || '').trim();
+    const email = (req.body.email || '').trim();
+    const subject = (req.body.subject || '').trim();
+    const message = (req.body.message || '').trim();
 
     if (!name || !email || !message) {
         return res.status(400).json({
@@ -11,11 +14,18 @@ const submitContactForm = async (req, res) => {
         });
     }
 
+    if (message.length > 5000) {
+        return res.status(400).json({
+            success: false,
+            message: 'Message is too long. Maximum 5000 characters.'
+        });
+    }
+
     try {
         const messageId = await contactMessage.createMessage({
             name,
             email,
-            subject,
+            subject: subject || 'General Inquiry',
             message
         });
 

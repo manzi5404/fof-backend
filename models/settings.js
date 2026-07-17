@@ -2,10 +2,9 @@ const { pool } = require('../db/connection');
 
 async function getSettings() {
     try {
-        const [rows] = await pool.query('SELECT setting_key, setting_value FROM settings');
-        return rows.reduce((acc, row) => {
-            // Handle boolean conversions for common setting types
-            acc[row.setting_key] = row.setting_value === 'true' ? true : row.setting_value === 'false' ? false : row.setting_value;
+        const result = await pool.query('SELECT key, value FROM settings');
+        return result.rows.reduce((acc, row) => {
+            acc[row.key] = row.value === 'true' ? true : row.value === 'false' ? false : row.value;
             return acc;
         }, {});
     } catch (error) {
@@ -16,11 +15,11 @@ async function getSettings() {
 
 async function updateSetting(settingKey, settingValue) {
     try {
-        const [result] = await pool.query(
-            'UPDATE settings SET setting_value = ? WHERE setting_key = ?',
-            [String(settingValue), settingKey]
+        const result = await pool.query(
+            'UPDATE settings SET value = $1 WHERE key = $2',
+            [String(settingValue ?? ''), settingKey]
         );
-        return result.affectedRows > 0;
+        return result.rowCount > 0;
     } catch (error) {
         console.error('❌ Database error in settingsModel.updateSetting():', error.message);
         throw new Error(`Database failed to update setting "${settingKey}".`);

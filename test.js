@@ -2,11 +2,11 @@ const { pool } = require('./db/connection');
 
 async function test() {
   try {
-    const [db] = await pool.query('SELECT DATABASE() as db');
-    console.log("Connected DB:", db);
+    const result = await pool.query('SELECT current_database() as db');
+    console.log("Connected DB:", result.rows[0]);
 
-    const [rows] = await pool.query('SELECT COUNT(*) as count FROM drops');
-    console.log("Drops count:", rows);
+    const countResult = await pool.query('SELECT COUNT(*) as count FROM drops');
+    console.log("Drops count:", countResult.rows[0]);
   } catch (err) {
     console.error(err);
   }
